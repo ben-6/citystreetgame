@@ -16,7 +16,9 @@ let redoHistory = [];
 let maxHistorySize = 50;
 
 // MAPBOX
-mapboxgl.accessToken = process.env.MAPBOX_ACCESS_TOKEN;
+mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN;
+// Disable telemetry to prevent ad blocker errors
+mapboxgl.setRTLTextPlugin = () => {}; // Stub for RTL text plugin
 let map;
 let streetData = null;
 let streetSegmentsData = null; // NEW: Store detailed segment data for location-specific classification
@@ -1229,8 +1231,14 @@ function getStreetType(highway) {
 
 // --- MAP INITIALIZATION ---
 function initMap() {
+    // Disable Mapbox telemetry to avoid ad blocker errors
+    if (mapboxgl.supported()) {
+        mapboxgl.prewarm();
+    }
+
     map = new mapboxgl.Map({
         container: 'map',
+        trackResize: true,
         style: {
             "version": 8,
             "sources": {
