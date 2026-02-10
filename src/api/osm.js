@@ -185,6 +185,21 @@ export function createFallbackBoundary(cityData) {
 }
 
 export async function fetchStreetsFromOSM(boundaries) {
+    const mainBoundary = getLargestPolygon(boundaries);
+    if (!mainBoundary) return { type: 'FeatureCollection', features: [] };
+    
+    const coords = mainBoundary.coordinates[0];
+    if (coords.length === 0) return { type: 'FeatureCollection', features: [] };
+    
+    const lats = coords.map(c => c[1]);
+    const lngs = coords.map(c => c[0]);
+    const bbox = {
+        south: Math.min(...lats),
+        west: Math.min(...lngs),
+        north: Math.max(...lats),
+        east: Math.max(...lngs)
+    };
+    
     const expansion = 0.02;
     bbox.south -= expansion;
     bbox.north += expansion;
