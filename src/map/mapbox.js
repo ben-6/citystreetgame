@@ -32,7 +32,13 @@ export function initMap() {
     state.map.on('style.load', () => {
         const layers = state.map.getStyle().layers;
         for (const layer of layers) {
-            if (layer.id.includes('label')) {
+            // Hide everything except background, water, and landcover
+            const isLabel = layer.id.includes('label');
+            const isRoad = layer.id.includes('road') || layer.id.includes('tunnel') || layer.id.includes('bridge') || layer.id.includes('transit');
+            const isPoi = layer.id.includes('roi') || layer.id.includes('poi') || layer.id.includes('airport') || layer.id.includes('building');
+            const isPlace = layer.id.includes('place') || layer.id.includes('admin') || layer.id.includes('boundary') && !layer.id.includes('water');
+
+            if (isLabel || isRoad || isPoi || isPlace) {
                 state.map.setLayoutProperty(layer.id, 'visibility', 'none');
             }
         }
@@ -66,7 +72,7 @@ export function setupCityMapLayers(boundaries, lat, lng) {
         id: 'city-boundary-line', 
         type: 'line', 
         source: 'city-boundary', 
-        paint: { 'line-color': '#00c8ff', 'line-width': 2, 'line-opacity': 0.8 } 
+        paint: { 'line-color': '#00c8ff', 'line-width': 1.5, 'line-opacity': 0.8 } 
     });
     
     state.map.addSource('streets', { type: 'geojson', data: state.streetData });
@@ -78,11 +84,11 @@ export function setupCityMapLayers(boundaries, lat, lng) {
             'line-color': '#ffffff', 
             'line-width': [
                 'case',
-                ['==', ['get', 'type'], 'major'], 6,
-                ['==', ['get', 'type'], 'primary'], 5,
-                ['==', ['get', 'type'], 'secondary'], 4,
-                ['==', ['get', 'type'], 'tertiary'], 3,
-                2.5
+                ['==', ['get', 'type'], 'major'], 4,
+                ['==', ['get', 'type'], 'primary'], 3,
+                ['==', ['get', 'type'], 'secondary'], 2.5,
+                ['==', ['get', 'type'], 'tertiary'], 2,
+                1.5
             ], 
             'line-opacity': document.getElementById('show-unfound-toggle')?.checked ? 0.2 : 0 
         } 
@@ -95,11 +101,11 @@ export function setupCityMapLayers(boundaries, lat, lng) {
             'line-color': '#00c8ff', 
             'line-width': [
                 'case',
-                ['==', ['get', 'type'], 'major'], 7,
-                ['==', ['get', 'type'], 'primary'], 6,
-                ['==', ['get', 'type'], 'secondary'], 5,
-                ['==', ['get', 'type'], 'tertiary'], 4,
-                3
+                ['==', ['get', 'type'], 'major'], 5,
+                ['==', ['get', 'type'], 'primary'], 4,
+                ['==', ['get', 'type'], 'secondary'], 3.5,
+                ['==', ['get', 'type'], 'tertiary'], 3,
+                2.5
             ], 
             'line-opacity': 0 
         } 
@@ -115,7 +121,7 @@ export function setupCityMapLayers(boundaries, lat, lng) {
         source: 'street-highlight-source', 
         paint: { 
             'line-color': '#ff6464', 
-            'line-width': 6, 
+            'line-width': 4, 
             'line-opacity': 0.8 
         } 
     });
