@@ -1,21 +1,23 @@
 import { state } from './src/state.js';
 import { initMap, hideStreetTooltip } from './src/map/mapbox.js';
-import { 
-    switchGameMode, 
-    handleMapClick, 
-    submitGuess, 
-    handleStreetInput, 
-    confirmAndLoadCity, 
-    toggleCityConfigMode, 
+import {
+    switchGameMode,
+    handleMapClick,
+    submitGuess,
+    handleStreetInput,
+    confirmAndLoadCity,
+    toggleCityConfigMode,
     resetGame,
     handleCitySearch,
     filterFoundItems,
     autofillNumberedStreets,
     undo,
     redo,
-    nextIntersection
+    nextIntersection,
+    restoreGame
 } from './src/game/core.js';
 import { setLoadingState } from './src/game/ui.js';
+import { loadGameState, saveGameState } from './src/cache.js';
 
 // --- EVENT LISTENERS ---
 document.addEventListener('DOMContentLoaded', function() {
@@ -51,9 +53,9 @@ document.addEventListener('DOMContentLoaded', function() {
         difficultySelect.addEventListener('change', (e) => {
             state.intersectionDifficulty = e.target.value;
             if (state.streetData && state.gameMode === 'intersections') {
-                // Just reset the current intersection, no need to regenerate all
                 nextIntersection();
             }
+            saveGameState();
         });
     }
 
@@ -155,11 +157,11 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
     
-    // Initialize mode UI is handled by default state, but we can call switchGameMode to ensure sync
-    // switchGameMode('streets'); 
-    // Actually, default is streets in state.js. 
-    // We might want to sync UI with state on load.
-    // The original code didn't call updateModeUI explicitly on load, but relied on HTML defaulting to streets mode visibility.
-    // We should probably call it to be safe.
-    switchGameMode(state.gameMode);
+    // Restore from cache or initialize fresh
+    const savedData = loadGameState();
+    if (savedData && savedData.streetData) {
+        restoreGame(savedData);
+    } else {
+        switchGameMode(state.gameMode);
+    }
 });

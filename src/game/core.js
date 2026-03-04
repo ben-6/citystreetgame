@@ -31,13 +31,14 @@ import {
     calculateDistanceMeters 
 } from '../utils/geo.js';
 import { normalizeStreetName } from '../utils/string.js';
+import { saveGameState } from '../cache.js';
 
 // --- GAME LOGIC ---
 
 export function switchGameMode(newMode) {
     state.gameMode = newMode;
     updateModeUI();
-    
+
     if (state.streetData) {
         if (state.gameMode === 'intersections') {
             nextIntersection();
@@ -45,6 +46,7 @@ export function switchGameMode(newMode) {
         updateStats();
         resetGame(false);
     }
+    saveGameState();
 }
 
 export function nextIntersection() {
@@ -194,12 +196,13 @@ export function submitGuess() {
     state.foundIntersections.add(key);
     state.intersectionScore += points;
     state.intersectionAccuracy.push(closestDistance);
-    
+
     // Show accuracy feedback
     showAccuracyFeedback(closestDistance, points);
-    
+
     // Update stats
     updateStats();
+    saveGameState();
     
     // Clean up after delay and get next intersection
     setTimeout(() => {
@@ -262,8 +265,9 @@ export function resetGame(fullReload = true) {
     if (state.gameMode === 'intersections') {
         nextIntersection();
     }
-    
+
     updateStats();
+    saveGameState();
     if (fullReload) {
         if (state.cityBoundaries) {
             const center = calculateBoundariesCenter(state.cityBoundaries);
@@ -350,7 +354,8 @@ export async function loadStreetsForCity(boundaries, lat, lng) {
             streetInput.placeholder = 'ENTER A STREET';
         }
         if (resetBtn) resetBtn.disabled = false;
-        
+        saveGameState();
+
     } catch (error) {
         console.error('Error loading streets:', error);
         showMessage('Error loading street data. Please try again.', 'error');
@@ -472,6 +477,7 @@ function checkStreet(value) {
             
             updateFoundStreetsLayer();
             updateStats();
+            saveGameState();
             showMessage(`Found ${matchedStreets.length} street(s) for "${value}"!`, 'success');
         } else {
             showMessage(`You already found all streets for "${value}"!`, 'error');
@@ -586,6 +592,7 @@ export function deleteStreet(streetName) {
         
         updateFoundStreetsLayer();
         updateStats();
+        saveGameState();
         showMessage(`Removed "${streetName}"`, 'success');
     }
 }
@@ -627,6 +634,7 @@ export function undo() {
     }
     updateStats();
     updateUndoRedoButtons();
+    saveGameState();
 }
 
 export function redo() {
@@ -649,6 +657,7 @@ export function redo() {
     }
     updateStats();
     updateUndoRedoButtons();
+    saveGameState();
 }
 
 function updateUndoRedoButtons() {
@@ -706,6 +715,7 @@ export function autofillNumberedStreets() {
         
         updateFoundStreetsLayer();
         updateStats();
+        saveGameState();
         showMessage(`Found ${streetsToAdd.length} numbered streets in range ${from}-${to}.`, 'success');
     } else {
         showMessage(`No new numbered streets found in range ${from}-${to}.`, 'error');
@@ -837,7 +847,7 @@ function showCitySuggestions(cities) {
 export function filterFoundItems(searchTerm) {
     const items = document.querySelectorAll('.found-item');
     const term = searchTerm.toLowerCase();
-    
+
     items.forEach(item => {
         const itemNameElement = item.querySelector('.item-name');
         const itemName = itemNameElement ? itemNameElement.textContent.toLowerCase() : '';
@@ -846,5 +856,90 @@ export function filterFoundItems(searchTerm) {
         } else {
             item.classList.add('hidden');
         }
+    });
+}
+
+// --- CACHE RESTORE ---
+
+export function restoreGame(data) {
+    state.gameMode = data.gameMode || 'streets';
+    state.intersectionDifficulty = data.intersectionDifficulty || 'major-major';
+    state.cityBoundaries = data.cityBoundaries;
+    state.currentCenter = data.currentCenter;
+    state.streetData = data.streetData;
+    state.totalLength = data.totalLength || 0;
+    state.foundStreets = new Set(data.foundStreets || []);
+    state.foundIntersections = new Set(data.foundIntersections || []);
+    state.intersectionScore = data.intersectionScore || 0;
+    state.intersectionAccuracy = data.intersectionAccuracy || [];
+
+    rebuildStreetSegmentsData();
+
+    const gameModeSelect = document.getElementById('game-mode-select');
+    if (gameModeSelect) gameModeSelect.value = state.gameMode;
+    const difficultySelect = document.getElementById('difficulty-select');
+    if (difficultySelect) difficultySelect.value = state.intersectionDifficulty;
+
+    const restoreLayers = () => {
+        if (!state.streetData || !state.cityBoundaries) return;
+
+        setupCityMapLayers(state.cityBoundaries, state.currentCenter[1], state.currentCenter[0]);
+
+        if (state.foundStreets.size > 0) {
+            updateFoundStreetsLayer();
+        }
+
+        rebuildFoundItemsList();
+
+        const streetInput = document.getElementById('street-input');
+        const resetBtn = document.getElementById('reset-btn');
+        if (streetInput) { streetInput.disabled = false; streetInput.placeholder = 'ENTER A STREET'; }
+        if (resetBtn) resetBtn.disabled = false;
+
+        if (state.gameMode === 'intersections') {
+            nextIntersection();
+        }
+
+        updateModeUI();
+        updateStats();
+    };
+
+    if (state.map.loaded()) {
+        restoreLayers();
+    } else {
+        state.map.on('load', restoreLayers);
+    }
+}
+
+function rebuildStreetSegmentsData() {
+    state.streetSegmentsData = new Map();
+    if (!state.streetData) return;
+
+    state.streetData.features.forEach(feature => {
+        const name = feature.properties.name;
+        const type = feature.properties.type;
+        const highway = feature.properties.highway;
+        const segments = [];
+
+        if (feature.geometry.type === 'LineString') {
+            segments.push({
+                coordinates: feature.geometry.coordinates,
+                type,
+                highway,
+                length: feature.properties.length
+            });
+        } else if (feature.geometry.type === 'MultiLineString') {
+            const segCount = feature.geometry.coordinates.length;
+            feature.geometry.coordinates.forEach(coords => {
+                segments.push({
+                    coordinates: coords,
+                    type,
+                    highway,
+                    length: feature.properties.length / segCount
+                });
+            });
+        }
+
+        state.streetSegmentsData.set(name, segments);
     });
 }
